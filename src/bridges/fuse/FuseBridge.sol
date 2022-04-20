@@ -10,6 +10,7 @@ import { FusePoolDirectory, CTokenInterface, ComptrollerInterface } from "./inte
 
 import { IDefiBridge } from "../../interfaces/IDefiBridge.sol";
 import { AztecTypes } from "../../aztec/AztecTypes.sol";
+import { IRollupProcessor } from "../../interfaces/IRollupProcessor.sol";
 
 // import 'hardhat/console.sol';
 
@@ -66,7 +67,7 @@ contract FuseBridge is IDefiBridge {
     AztecTypes.AztecAsset calldata outputAssetA,
     AztecTypes.AztecAsset calldata,
     uint256 inputValue,
-    uint256,
+    uint256 interactionNonce,
     uint64 auxData
   )
     external
@@ -106,7 +107,6 @@ contract FuseBridge is IDefiBridge {
 
       balanceAfter = ERC20(address(fToken)).balanceOf(address(this)); 
 
-      outputValueA = balanceAfter.sub(balanceBefore);
 
     } else {
       require(approvedMarkets[inputAssetA.erc20Address], "FuseBridge: MARKET_NOT_APPROVED");
@@ -118,9 +118,15 @@ contract FuseBridge is IDefiBridge {
       fToken.redeem(inputValue);
 
       balanceAfter = fToken.isCEther() ? address(this).balance : ERC20(outputAssetA.erc20Address).balanceOf(address(this)); 
-      outputValueA = balanceAfter.sub(balanceBefore);
+
     }
-    ERC20(outputAssetA.erc20Address).approve(rollupProcessor, outputValueA);
+    outputValueA = balanceAfter.sub(balanceBefore);
+    if(outputAssetA.assetType == AztecTypes.AztecAssetType.ETH){
+      IRollupProcessor(rollupProcessor).receiveEthFromBridge{value: outputValueA}(interactionNonce);
+    }else{
+      ERC20(outputAssetA.erc20Address).approve(rollupProcessor, outputValueA);  
+    }
+
   }
 
   function finalise(
