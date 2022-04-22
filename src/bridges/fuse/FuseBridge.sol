@@ -95,13 +95,14 @@ contract FuseBridge is IDefiBridge {
 
       if(inputAssetA.assetType == AztecTypes.AztecAssetType.ERC20){
         require(!fEther);
-
+        // Allow fToken to spend input token
         ERC20(inputAssetA.erc20Address).approve(address(fToken), inputValue);
+        // mint fToken
         fToken.mint(inputValue);
 
       }else if(inputAssetA.assetType == AztecTypes.AztecAssetType.ETH){
         require(fEther);
-
+        // mint fToken with ETH
         fToken.mint{value: inputValue}();
       }
 
@@ -114,14 +115,18 @@ contract FuseBridge is IDefiBridge {
 
       CTokenInterface fToken = CTokenInterface(inputAssetA.erc20Address);
       balanceBefore = fToken.isCEther() ? address(this).balance : ERC20(outputAssetA.erc20Address).balanceOf(address(this)); 
-
+      //redeem fToken
       fToken.redeem(inputValue);
-
       balanceAfter = fToken.isCEther() ? address(this).balance : ERC20(outputAssetA.erc20Address).balanceOf(address(this)); 
 
     }
+    // outputValue = balanceAfter - balanceBefore
     outputValueA = balanceAfter.sub(balanceBefore);
+
+    // approve output token to rollup-processor if output token is ERC20 token
+    // send ETH to rollup-proceesor if output token is ETH
     if(outputAssetA.assetType == AztecTypes.AztecAssetType.ETH){
+      // transfer eth to rollup-processor
       IRollupProcessor(rollupProcessor).receiveEthFromBridge{value: outputValueA}(interactionNonce);
     }else{
       ERC20(outputAssetA.erc20Address).approve(rollupProcessor, outputValueA);  
