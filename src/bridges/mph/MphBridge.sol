@@ -85,7 +85,7 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
 
         interaction[nonce].depositID = depositId;
         interaction[nonce].firbAddress = outputAsset;
-        interaction[nonce].maturation = deposit.maturationTimestamp;
+        interaction[nonce].maturation = _maturation;
         interaction[nonce].amount = deposit.virtualTokenTotalSupply;
         interaction[nonce].underlying = inputAsset;
 
