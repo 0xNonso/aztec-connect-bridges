@@ -12,9 +12,6 @@ import {RollupProcessor} from "./../../aztec/RollupProcessor.sol";
 
 import {MphBridge} from "./../../bridges/mph/MphBridge.sol";
 import {AztecTypes} from "./../../aztec/AztecTypes.sol";
-interface Test {
-    function latestNonce() external view returns(uint256);
-}
 
 contract MphTest is DSTest {
     Vm private vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -25,6 +22,7 @@ contract MphTest is DSTest {
 
     DefiBridgeProxy private defiBridgeProxy;
     RollupProcessor private rollupProcessor;
+    uint256 nonce = 0;
 
     MphBridge private bridge;
 
@@ -39,6 +37,12 @@ contract MphTest is DSTest {
     AztecTypes.AztecAsset private compDaiFirbAsset = AztecTypes.AztecAsset({
         id: 2,
         erc20Address: compDaiFirbAddr,
+        assetType: AztecTypes.AztecAssetType.ERC20
+    });
+
+    AztecTypes.AztecAsset private mphAsset = AztecTypes.AztecAsset({
+        id: 2,
+        erc20Address: mphToken,
         assetType: AztecTypes.AztecAssetType.ERC20
     });
 
@@ -70,7 +74,7 @@ contract MphTest is DSTest {
         assertEq(IERC20(token).balanceOf(user), balance, "wrong balance");
     }
 
-    function testMPHBrdge() public {
+    function testDepositMPHBrdge() public {
         uint256 depositAmount = 200e18;
         uint256 maturation = block.timestamp + 2 days;
 
@@ -79,9 +83,9 @@ contract MphTest is DSTest {
             dai,
             empty,
             compDaiFirbAsset,
-            empty,
+            mphAsset,
             depositAmount,
-            0,
+            nonce,
             maturation
         );
         // uint256 bridgeBalance = IERC20(compDaiFirbAddr).balanceOf(address(bridge));
@@ -91,6 +95,7 @@ contract MphTest is DSTest {
         // rollupProcessor.processAsyncDeFiInteraction(
         //     nonce
         // );
+        nonce++;
     }
 
     function testFinaliseMPHBrdge() public {
@@ -105,30 +110,22 @@ contract MphTest is DSTest {
             dai,
             empty,
             compDaiFirbAsset,
-            empty,
+            mphAsset,
             depositAmount,
-            0,
+            nonce,
             maturation
         );
 
-        vm.warp(maturation + 31 days);
-
-        uint256 nonce = Test(address(bridge)).latestNonce();
-        (uint256 withdrawnAmount, uint256 mphWithdrawn, bool interactionComplete) = bridge.finalise(
-            empty,
-            empty, 
-            empty, 
-            empty, 
-            nonce, 
-            0
-        );
+        vm.warp(maturation + 1 days);
+  
+        rollupProcessor.processAsyncDeFiInteraction(nonce);
         emit log_named_uint("Withdrawn Amount", withdrawnAmount);
         emit log_named_uint("Withdrawn MPH", mphWithdrawn);
 
         assertTrue(isAsync == true);
         assertTrue(withdrawnAmount > 0);
         assertTrue(mphWithdrawn > 0);
-        assertTrue(interactionComplete == true);
+        nonce++;
 
 
     }
@@ -141,22 +138,13 @@ contract MphTest is DSTest {
             dai,
             empty,
             compDaiFirbAsset,
-            empty,
+            mphAsset,
             depositAmount,
-            0,
+            nonce,
             maturation
         );
 
-        uint256 nonce = Test(address(bridge)).latestNonce();
-
-        bridge.finalise(
-            empty,
-            empty, 
-            empty, 
-            empty, 
-            nonce, 
-            0
-        );
+        rollupProcessor.processAsyncDeFiInteraction(nonce);
     }
 
 }

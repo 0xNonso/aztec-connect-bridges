@@ -26,9 +26,6 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
     /// @notice 88mph token address
     address public immutable mphToken;
 
-    /// @notice gets latest nonce. For testing purpose
-    uint256 public latestNonce;
-
     struct Interaction{
         uint64 depositID;
         address firbAddress;
@@ -56,9 +53,9 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
         AztecTypes.AztecAsset calldata inputAssetA,
         AztecTypes.AztecAsset calldata,
         AztecTypes.AztecAsset calldata outputAssetA,
-        AztecTypes.AztecAsset calldata,
+        AztecTypes.AztecAsset calldata outputAssetB,
         uint256 inputValue,
-        uint256,
+        uint256 nonce,
         uint64 _maturation
     )
         external
@@ -71,6 +68,7 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
         )
     {
         require(msg.sender == rollupProcessor, "MPH-Bridge: INVALID_CALLER");
+        require(interaction[nonce].amount == 0, "MPH-Bridge: INVALID_NONCE");
         isAsync = true;
 
         address outputAsset = outputAssetA.erc20Address;
@@ -81,15 +79,13 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
         (uint64 depositId, ) = DInterest(outputAsset).deposit(inputValue, _maturation);
         DInterest.Deposit memory deposit = DInterest(outputAsset).getDeposit(depositId);
 
-        uint256 nonce = getInteractionNonce(outputAsset, depositId);
+        // uint256 nonce = getInteractionNonce(outputAsset, depositId);
 
         interaction[nonce].depositID = depositId;
         interaction[nonce].firbAddress = outputAsset;
         interaction[nonce].maturation = _maturation;
         interaction[nonce].amount = deposit.virtualTokenTotalSupply;
         interaction[nonce].underlying = inputAsset;
-
-        latestNonce = nonce;
 
     }
 
@@ -113,7 +109,7 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
         uint256 interactionNonce,
         uint64
     ) external payable override returns (uint256 withdrawnAmount, uint256 mphWithdrawn, bool interactionComplete) {
-        require(_canFinalise(interactionNonce));
+        require(_canFinalise(interactionNonce), "MPH-Bridge: CANNOT_FINALISE");
 
         Interaction storage persCache = interaction[interactionNonce];
         address firb = persCache.firbAddress;
@@ -125,14 +121,13 @@ contract MphBridge is IERC721Receiver, IDefiBridge {
         mphWithdrawn = IVesting(mphVesting).withdraw(vestId);
         interactionComplete = true;
 
-        IERC20(mphToken).approve(rollupProcessor, mphWithdrawn);
         IERC20(persCache.underlying).approve(rollupProcessor, withdrawnAmount);
-
+        IERC20(mphToken).approve(rollupProcessor, mphWithdrawn);
     }
 
-    function getInteractionNonce(address _firb, uint64 depositID) public view returns (uint256){
-        return uint256(keccak256(abi.encodePacked(_firb,depositID)));
-    }
+    // function getInteractionNonce(address _firb, uint64 depositID) public view returns (uint256){
+    //     return uint256(keccak256(abi.encodePacked(_firb,depositID)));
+    // }
 
     function onERC721Received(
         address,
